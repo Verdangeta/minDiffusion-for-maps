@@ -5,6 +5,9 @@ import os
 
 from PIL import Image
 
+import zipfile
+import gdown
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -21,6 +24,20 @@ from torchvision.utils import save_image, make_grid
 
 from mindiffusion.unet import NaiveUnet
 from mindiffusion.ddpm import DDPM
+
+# Функция скачивающая и разархивирующая датасет
+def downloader_maps()-> None:
+    newpath = "./data"
+    if not os.path.exists(newpath):
+        os.makedirs(newpath)
+    
+    url = 'https://drive.google.com/uc?id=1dyEskBDpIoaf7uJFk6mUV23eOF2mVid_'
+    output = './data/my_dataset.zip'
+    gdown.download(url, output, quiet=False)
+    
+    with zipfile.ZipFile('./data/my_dataset.zip', 'r') as zip_ref:
+        zip_ref.extractall("./data")
+    
 
 
 
@@ -142,6 +159,11 @@ def train_maps(
 
 
 if __name__ == "__main__":
+    
+    # Скачивание датасета
+    downloader_maps() 
+    
+    
     # Первый этап обучения с lr = 5e-5
     path_to_dir = "./data/my_dataset"
     train_maps(path_to_dir,Flip = True,n_epoch = 100)
