@@ -1,55 +1,126 @@
-# minDiffusion
+# DDPM for maps
 
 <!-- #region -->
 <p align="center">
-<img  src="contents/_ddpm_sample_19.png">
+<img  src="contents/example_maps_10000.png">
 </p>
 
-Goal of this educational repository is to provide a self-contained, minimalistic implementation of diffusion models using Pytorch.
+ЗАДАЧА.
 
-Many implementations of diffusion models can be a bit overwhelming. Here, `superminddpm` : under 200 lines of code, fully self contained implementation of DDPM with Pytorch is a good starting point for anyone who wants to get started with Denoising Diffusion Models, without having to spend time on the details.
+Адаптировать код для диффузионной модели для генерации карт.
+-  Репозиторий с моделью: https://github.com/cloneofsimo/minDiffusion
+-  Изображения с картами : https://github.com/chrieke/awesome-satellite-imagery-datasets
 
-Simply:
+Был выбран датасет EuroSAT (RGB color space images) - набор данных о классификации землепользования и растительного покрова на основе спутниковых снимков Sentinel-2.(http://madm.dfki.de/downloads) 
+
+Из него были выбраны 4 класса для обучения генеративной модели: Higway,HerbaceousVegetation,River и Pasture.
+
+Итоговый датасет имеет объём 10000 RGB изображений размером 64x64. 
+
+Чтобы подготовить DDPM к обучению на этом наборе данных, было необходимо приспособить class Dataset для этого датасета, что и было сделано:
+
 
 ```
-$ python superminddpm.py
+$ class MapsDataset(Dataset):
+    """ Highway maps dataset."""
+
+    def __init__(self, root_dir, transform=None):
+        """
+        Args:
+            root_dir (string): Directory with all the images.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+        """
+        self.root_dir = root_dir
+        self.transform = transform
+        self.im_names = os.listdir(self.root_dir)
+
+    def __len__(self):
+        return len(self.im_names)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        img_name = os.path.join(self.root_dir,
+                                self.im_names[idx])
+        image =torchvision.io.read_image(img_name)/255
+
+        if self.transform:
+            image = self.transform(image)
+
+        return image
 ```
 
-Above script is self-contained. (Of course, you need to have pytorch and torchvision installed. Latest version should suffice. We do not use any cutting edge features.)
-
-If you want to use the bit more refactored code, that runs CIFAR10 dataset:
+Также было добавленно в обработку изображений при обучении RandomVerticalFlip, RandomHorizontalFlip
 
 ```
-$ python train_cifar10.py
+$         tf = transforms.Compose(
+            [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+             transforms.RandomVerticalFlip(),
+             transforms.RandomHorizontalFlip()
+            ])
 ```
+
+Выбор параметров основан на статье https://arxiv.org/pdf/2006.11239.pdf.
+
+- batch_size = 128 (максимальный, который можно использовать для даного набора данных на доступном мне GPU).
+- learning rate = 5e-5 (но для последних 10 эпох был уменьшен до 1e-5).
+- decay factor = 0.96 (в статье авторы брали 0.999, но я решил остановиться на 0.96 , небольши изменения этого параметра к значимому улучшению не приводили).
+- Параметры DDPM были не тронуты и остались такими же как и в статье упомянутой ранее.
+
+Обучение:
+
+- Было запущено 100 эпох с lr = 5e-5 и ещё 10 с lr = 1e-5.	
+- В обоих случаях были включеный повороты изображения.
+
+Итог генерирования 25 изображений:
+
 
 <!-- #region -->
 <p align="center">
-<img  src="contents/_ddpm_sample_cifar43.png">
+<img  src="contents/ddpm_sample_maps_1000_fitted.png">
 </p>
 
-Above result took about 2 hours of training on single 3090 GPU. Top 8 images are generated, bottom 8 are ground truth.
+Обучение заняло 4,5 часа на GPU googleColab.
 
-Here is another example, trained on 100 epochs (about 1.5 hours)
+
+
+Для первоначальной проверки работоспособности модели , она была запущена на 5000 итераций на одном изображении:
+
+Нижний ряд содержит только исходник. Исходя из результата было принято решение, что модель рабочая.
 
 <p align="center">
-<img  src="contents/_ddpm_sample_cifar100.png">
+<img  src="contents/one_sample_train.png">
 </p>
 
-Currently has:
+Далее была обученна модель на 2500 картинках из класса Highway 100 эпох.
+Здесь мы видим, что модели не хватило обучения, поэтому было принято решение увеличить количество шагов обучения.
 
-- [x] Tiny implementation of DDPM
-- [x] MNIST, CIFAR dataset.
-- [x] Simple unet structure. + Simple Time embeddings.
-- [x] CelebA dataset.
+<!-- #region -->
+<p align="center">
+<img  src="contents/sample_Higway_2500.jpg">
+</p>
 
-TODOS
+В конечном счёте модель была обучена на датасете из всех 4 классов состоящем из 10000 картинок
 
-- [ ] DDIM
-- [ ] Classifier Guidance
-- [ ] Multimodality
+Выбор параметров для неё основан на статье https://arxiv.org/pdf/2006.11239.pdf.
 
-# Updates!
+- batch_size = 128 (максимальный, который можно использовать для даного набора данных на доступном мне GPU).
+- learning rate = 5e-5 (но для последних 10 эпох был уменьшен до 1e-5).
+- decay factor = 0.96 (в статье авторы брали 0.999, но я решил остановиться на 0.96 , небольши изменения этого параметра к значимому улучшению не приводили).
+- Параметры DDPM были не тронуты и остались такими же как и в статье упомянутой ранее.
 
-- Using more parameter yields better result for MNIST.
-- More comments in superminddpm.py
+Обучение:
+
+- Было запущено 100 эпох с lr = 5e-5 и ещё 10 с lr = 1e-5.	
+- В обоих случаях были включеный повороты изображения.
+
+Итог генерирования 25 изображений:
+
+
+<!-- #region -->
+<p align="center">
+<img  src="contents/ddpm_sample_maps_1000_fitted.png">
+</p>
+
