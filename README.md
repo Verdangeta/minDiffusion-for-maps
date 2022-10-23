@@ -52,7 +52,7 @@ $ class MapsDataset(Dataset):
         return image
 ```
 
-Также было добавленно в обработку изображений при обучении RandomVerticalFlip, RandomHorizontalFlip
+Также было добавленно в обработку изображений при обучении RandomVerticalFlip и RandomHorizontalFlip
 
 ```
 $         tf = transforms.Compose(
